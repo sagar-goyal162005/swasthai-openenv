@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swasthai-openenv-submission"
+version = "1.0.0"
+description = "SwasthAI OpenEnv environment (hackathon submission layer)."
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+  "openenv-core>=0.2.3",
+  "pydantic>=2.0.0",
+  "fastapi>=0.104.0",
+  "uvicorn>=0.24.0",
+]
+
+[project.scripts]
+server = "openenv_submission.server.app:main"

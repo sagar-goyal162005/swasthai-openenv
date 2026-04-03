@@ -1,0 +1,17 @@
+name: swasthai
+version: 1.0.0
+description: "Healthcare triage & diagnosis workflow environment (SwasthAI hackathon layer)."
+
+tasks:
+  - easy_fever_cough
+  - medium_flu_vs_dengue
+  - hard_dengue_like
+
+entrypoint:
+  env_module: openenv_submission.server.environment
+  env_class: SwasthAIEnvironment
+
+api:
+  reset: reset
+  step: step
+  state: state
