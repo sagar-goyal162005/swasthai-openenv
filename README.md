@@ -34,6 +34,9 @@ All rewards are normalized to **[0.0, 1.0]**.
 - `ask` → `0.05` for retrieving a relevant hidden fact, otherwise `0.0`
 - `diagnose` → `1.0` exact/synonym match, `0.5` partial token overlap, else `0.0`
 
+## RL framing (why this is reinforcement learning)
+This is an RL-style environment: an agent interacts over multiple steps by choosing actions (`ask` vs `diagnose`) based on observations (symptoms + conversation history) to maximize cumulative reward. Rewards are shaped to encourage efficient information-gathering (small positive reward for relevant questions) and correct decision-making (reward `1.0` for the right diagnosis), with episodes terminating on success or at a fixed step limit.
+
 ## Run locally (Python)
 From repo root:
 
