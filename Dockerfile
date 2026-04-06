@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY openenv_submission/ /app/openenv_submission/
-COPY openenv.yaml /app/openenv.yaml
-COPY inference.py /app/inference.py
+# Copy the full submission bundle so `openenv validate` (repo-mode)
+# can see repo-root artifacts like `pyproject.toml`, `uv.lock`, and `server/app.py`.
+COPY . /app
 
 RUN pip install --no-cache-dir -r /app/openenv_submission/requirements.txt
 
