@@ -96,7 +96,7 @@ def _heuristic_diagnosis(symptoms: Sequence[str], history: Sequence[str]) -> str
 def _env_vars() -> Tuple[str, str, Optional[str]]:
     api_base_url = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
     model_name = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-    hf_token = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+    hf_token = os.getenv("HF_TOKEN")
     return api_base_url, model_name, hf_token
 
 
