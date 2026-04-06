@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swasthai-openenv"
+version = "1.0.0"
+description = "SwasthAI OpenEnv environment (hackathon submission)."
+readme = "README.md"
+requires-python = ">=3.10"
+
+# Keep deps here so `openenv validate` can run in repo mode.
+dependencies = [
+  "openenv-core>=0.2.3",
+  "pydantic>=2.0.0",
+  "fastapi>=0.104.0",
+  "uvicorn>=0.24.0",
+  "openai>=0.27.0",
+  "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["openenv_submission*"]
+
+[project.scripts]
+server = "openenv_submission.server.app:main"
