@@ -10,7 +10,7 @@ from openenv.core.env_server.types import EnvironmentMetadata
 from openenv.core.env_server.types import Observation as OEObservation
 from openenv.core.env_server.types import State as OEState
 
-from ..grader import grade_diagnosis
+from ..grader import clamp_score, grade_diagnosis
 from ..tasks import CASE_BY_NAME, Case, list_task_names
 
 
@@ -104,7 +104,7 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
                 if not q:
                     self._last_action_error = "empty question"
                     answer = "Please ask a non-empty question."
-                    reward_value = 0.0
+                    reward_value = clamp_score(0.0)
                 else:
                     answer, reward_value = self._answer_question(q)
 
@@ -118,25 +118,26 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
                 gr = grade_diagnosis(predicted=pred, actual=self._case.target_diagnosis)
                 reward_value = float(gr.score)
                 metadata["grade_rationale"] = gr.rationale
+                metadata["is_correct"] = bool(gr.is_correct)
 
                 self._history.append(f"DX: {pred}")
                 self._last_answer = None
 
-                if gr.score >= 1.0:
+                if gr.is_correct:
                     done = True
 
             else:
                 self._last_action_error = f"invalid action.type={action.type}"
-                reward_value = 0.0
+                reward_value = clamp_score(0.0)
 
         except Exception as e:
             self._last_action_error = f"exception: {type(e).__name__}: {e}"
-            reward_value = 0.0
+            reward_value = clamp_score(0.0)
 
         if self._steps >= self._max_steps:
             done = True
 
-        reward_value = max(0.0, min(1.0, reward_value))
+        reward_value = clamp_score(reward_value)
 
         if self._last_action_error:
             metadata["last_action_error"] = self._last_action_error
@@ -191,7 +192,7 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
                 break
 
         if matched_key is None:
-            return "I don't have that information based on your question.", 0.0
+            return "I don't have that information based on your question.", clamp_score(0.0)
 
         answer = self._case.hidden_facts[matched_key]
-        return f"{matched_key}: {answer}", 0.05
+        return f"{matched_key}: {answer}", clamp_score(0.05)

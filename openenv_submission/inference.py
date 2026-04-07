@@ -246,7 +246,7 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
 
             if done:
                 # success is "correct diagnosis at any point"
-                success = reward >= 1.0
+                success = bool(info.get("is_correct", False))
                 break
 
     finally:
