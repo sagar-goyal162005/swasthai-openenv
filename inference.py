@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import os
 
-from openai import OpenAI  # noqa: F401
-
 from openenv_submission.inference import main
 
 
