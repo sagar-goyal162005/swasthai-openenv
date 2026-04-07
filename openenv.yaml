@@ -3,9 +3,20 @@ version: 1.0.0
 description: "Healthcare triage & diagnosis workflow environment (SwasthAI hackathon layer)."
 
 tasks:
-  - easy_fever_cough
-  - medium_flu_vs_dengue
-  - hard_dengue_like
+  - id: easy_fever_cough
+    name: easy_fever_cough
+    grader: openenv_submission.grader:grade_easy_fever_cough
+  - id: medium_flu_vs_dengue
+    name: medium_flu_vs_dengue
+    grader: openenv_submission.grader:grade_medium_flu_vs_dengue
+  - id: hard_dengue_like
+    name: hard_dengue_like
+    grader: openenv_submission.grader:grade_hard_dengue_like
+
+graders:
+  easy_fever_cough: openenv_submission.grader:grade_easy_fever_cough
+  medium_flu_vs_dengue: openenv_submission.grader:grade_medium_flu_vs_dengue
+  hard_dengue_like: openenv_submission.grader:grade_hard_dengue_like
 
 entrypoint:
   env_module: openenv_submission.server.environment

@@ -82,27 +82,52 @@ def grade_task(task_name: str, predicted: str) -> GradeResult:
     return grade_diagnosis(predicted=predicted, actual=case.target_diagnosis)
 
 
+def grade_result(task_name: str, predicted: str) -> GradeResult:
+    """Public API returning a structured grade (score + rationale)."""
+
+    return grade_task(task_name=task_name, predicted=predicted)
+
+
 def grade(task_name: str, predicted: str) -> float:
-    """Convenience API returning the numeric score for a task."""
+    """Public API returning only the numeric score for a task.
 
-    return float(grade_task(task_name=task_name, predicted=predicted).score)
+    Some validators expect task graders to return a raw float.
+    """
 
-
-# Explicit per-task grader functions (some validators look for these by name).
-def grade_easy_fever_cough(predicted: str) -> GradeResult:
-    return grade_task("easy_fever_cough", predicted)
+    return float(grade_result(task_name=task_name, predicted=predicted).score)
 
 
-def grade_medium_flu_vs_dengue(predicted: str) -> GradeResult:
-    return grade_task("medium_flu_vs_dengue", predicted)
+# Explicit per-task grader functions.
+#
+# IMPORTANT: Hackathon deep validation expects each task grader to return a
+# numeric score strictly within (0, 1). Returning a dataclass here can cause
+# those checks to fail.
+def grade_easy_fever_cough(predicted: str) -> float:
+    return float(grade("easy_fever_cough", predicted))
 
 
-def grade_hard_dengue_like(predicted: str) -> GradeResult:
-    return grade_task("hard_dengue_like", predicted)
+def grade_medium_flu_vs_dengue(predicted: str) -> float:
+    return float(grade("medium_flu_vs_dengue", predicted))
 
 
-# Mapping of task_name -> grader callable.
+def grade_hard_dengue_like(predicted: str) -> float:
+    return float(grade("hard_dengue_like", predicted))
+
+
+def grade_easy_fever_cough_result(predicted: str) -> GradeResult:
+    return grade_result("easy_fever_cough", predicted)
+
+
+def grade_medium_flu_vs_dengue_result(predicted: str) -> GradeResult:
+    return grade_result("medium_flu_vs_dengue", predicted)
+
+
+def grade_hard_dengue_like_result(predicted: str) -> GradeResult:
+    return grade_result("hard_dengue_like", predicted)
+
+
+# Mapping of task_name -> grader callable returning a float score.
 TASK_GRADERS = {
-    name: (lambda predicted, _name=name: grade_task(_name, predicted))
+    name: (lambda predicted, _name=name: grade(_name, predicted))
     for name in list_task_names()
 }
