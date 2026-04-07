@@ -101,6 +101,7 @@ def _env_vars() -> Tuple[str, str, Optional[str]]:
 
 
 def _build_prompt(task: str, symptoms: List[str], history: List[str]) -> str:
+    history_block = "\n".join(history) if history else "(none)"
     return textwrap.dedent(
         f"""
         You are a clinical triage assistant in a simulated environment.
@@ -109,7 +110,7 @@ def _build_prompt(task: str, symptoms: List[str], history: List[str]) -> str:
         Visible symptoms: {symptoms}
 
         Conversation history (Q/A + any prior diagnoses):
-        {"\n".join(history) if history else "(none)"}
+        {history_block}
 
         Choose ONE action for the next step, in strict JSON:
         {{"type": "ask", "content": "<one short question>"}}
