@@ -259,8 +259,16 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
 
 
 def main() -> int:
-    task_name = os.getenv("OPENENV_TASK") or list_task_names()[0]
-    return run_episode(task_name)
+    single = os.getenv("OPENENV_TASK")
+    if single:
+        return run_episode(single)
+    # Run ALL tasks so the validator sees 3+ tasks with graders.
+    exit_code = 0
+    for task_name in list_task_names():
+        rc = run_episode(task_name)
+        if rc != 0:
+            exit_code = rc
+    return exit_code
 
 
 if __name__ == "__main__":
