@@ -58,17 +58,35 @@ def grade_diagnosis(predicted: str, actual: str) -> GradeResult:
     if p == a:
         return GradeResult(score=MAX_SCORE, rationale="exact match", is_correct=True)
 
-    # allow common synonyms for influenza
-    if a == "influenza" and p in {"flu", "influenza virus", "seasonal flu"}:
+    # Synonym maps for accepted alternative labels
+    _SYNONYMS = {
+        "influenza": {"flu", "influenza virus", "seasonal flu", "influenza a", "influenza b"},
+        "common cold": {"cold", "upper respiratory infection", "uri", "viral uri", "rhinitis"},
+        "dengue": {"dengue fever", "dengue hemorrhagic fever", "dhf", "break-bone fever"},
+        "malaria": {"plasmodium", "plasmodium falciparum", "plasmodium vivax", "malarial fever"},
+        "typhoid": {"typhoid fever", "enteric fever", "salmonella typhi"},
+    }
+
+    synonyms = _SYNONYMS.get(a, set())
+    if p in synonyms:
         return GradeResult(score=MAX_SCORE, rationale="synonym match", is_correct=True)
 
-    # simple partial credit: any meaningful token overlap
+    # Severity-aware partial credit
     p_tokens = set(p.split())
     a_tokens = set(a.split())
     overlap = len(p_tokens & a_tokens)
 
+    # Also check if prediction is close to any synonym
+    synonym_partial = any(
+        len(p_tokens & set(syn.split())) > 0 for syn in synonyms
+    )
+
     if overlap > 0:
-        return GradeResult(score=clamp_score(0.5), rationale=f"partial token overlap={overlap}", is_correct=False)
+        ratio = overlap / max(len(a_tokens), 1)
+        return GradeResult(score=clamp_score(0.4 + 0.3 * ratio), rationale=f"partial token overlap={overlap} ratio={ratio:.2f}", is_correct=False)
+
+    if synonym_partial:
+        return GradeResult(score=clamp_score(0.35), rationale="partial synonym overlap", is_correct=False)
 
     return GradeResult(score=MIN_SCORE, rationale="no match", is_correct=False)
 
@@ -114,6 +132,14 @@ def grade_hard_dengue_like(predicted: str) -> float:
     return float(grade("hard_dengue_like", predicted))
 
 
+def grade_expert_malaria_mimic(predicted: str) -> float:
+    return float(grade("expert_malaria_mimic", predicted))
+
+
+def grade_expert_typhoid_enteric(predicted: str) -> float:
+    return float(grade("expert_typhoid_enteric", predicted))
+
+
 def grade_easy_fever_cough_result(predicted: str) -> GradeResult:
     return grade_result("easy_fever_cough", predicted)
 
@@ -124,6 +150,14 @@ def grade_medium_flu_vs_dengue_result(predicted: str) -> GradeResult:
 
 def grade_hard_dengue_like_result(predicted: str) -> GradeResult:
     return grade_result("hard_dengue_like", predicted)
+
+
+def grade_expert_malaria_mimic_result(predicted: str) -> GradeResult:
+    return grade_result("expert_malaria_mimic", predicted)
+
+
+def grade_expert_typhoid_enteric_result(predicted: str) -> GradeResult:
+    return grade_result("expert_typhoid_enteric", predicted)
 
 
 # Mapping of task_name -> grader callable returning a float score.

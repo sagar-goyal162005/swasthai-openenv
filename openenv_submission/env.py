@@ -150,8 +150,17 @@ class SwasthAIEnv:
         # no external resources
         return
 
+    # High-value facts are more diagnostically useful — reward them more.
+    _HIGH_VALUE_KEYS = {"platelets", "bleeding", "travel", "rash", "diarrhea", "spleen"}
+
     def _answer_question(self, question: str) -> Tuple[str, float]:
-        """Return (answer, reward) where reward is strictly within (0,1)."""
+        """Return (answer, reward) where reward is strictly within (0,1).
+
+        Progressive reward shaping:
+        - High-value diagnostic facts: 0.10
+        - Standard facts:              0.05
+        - Repeated / irrelevant:       ~0.0
+        """
 
         assert self._case is not None
         q = question.lower()
@@ -169,6 +178,20 @@ class SwasthAIEnv:
             "breath": "breathlessness",
             "travel": "travel",
             "mosquito": "travel",
+            "appetite": "appetite",
+            "temperature": "temperature",
+            "temp": "temperature",
+            "chills": "chills",
+            "sweat": "chills",
+            "diarrhea": "diarrhea",
+            "stool": "diarrhea",
+            "constipation": "diarrhea",
+            "spleen": "spleen",
+            "abdomen": "spleen",
+            "dehydration": "dehydration",
+            "water": "dehydration",
+            "food": "appetite",
+            "eat": "appetite",
         }
 
         matched_key: Optional[str] = None
@@ -181,6 +204,14 @@ class SwasthAIEnv:
             # neutral answer; no negative rewards (reward must be 0..1)
             return "I don't have that information based on your question.", clamp_score(0.0)
 
+        # Penalize repeated questions — diminishing returns
+        prev_questions = [a.lower() for a in self._asked]
+        if any(matched_key in pq for pq in prev_questions):
+            answer = self._case.hidden_facts[matched_key]
+            return f"{matched_key}: {answer} (already asked)", clamp_score(0.01)
+
         answer = self._case.hidden_facts[matched_key]
-        # small dense reward for retrieving relevant info
+        # Progressive reward: high-value diagnostic facts get more reward
+        if matched_key in self._HIGH_VALUE_KEYS:
+            return f"{matched_key}: {answer}", clamp_score(0.10)
         return f"{matched_key}: {answer}", clamp_score(0.05)

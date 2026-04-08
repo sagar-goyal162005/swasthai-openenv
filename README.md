@@ -9,33 +9,76 @@ license: apache-2.0
 
 This folder is a **standalone OpenEnv-style environment** built on top of the SwasthAI idea (healthcare triage), without changing the existing frontend/backend.
 
-## What this environment simulates
-A clinician-style workflow:
-- The agent sees **public symptoms**.
-- It can **ask questions** to retrieve hidden facts (duration, platelet count, rash, etc.).
-- It must then **produce a diagnosis**.
+## Architecture
 
-## Tasks (3+)
-- `easy_fever_cough` → common cold
-- `medium_flu_vs_dengue` → influenza
-- `hard_dengue_like` → dengue
+```
+inference.py          → runs all 5 tasks, emits [START]/[STEP]/[END] logs
+openenv_submission/
+  ├── env.py          → standalone SwasthAIEnv (reset/step/state)
+  ├── grader.py       → deterministic per-task graders with synonym & partial credit
+  ├── tasks.py        → 5 patient cases (easy → expert) with hidden facts
+  ├── inference.py    → LLM agent + heuristic fallback
+  ├── openenv.yaml    → OpenEnv spec (tasks, graders, entrypoint)
+  └── server/
+       ├── app.py         → FastAPI server via openenv-core
+       └── environment.py → OpenEnv Environment interface implementation
+```
+
+## What this environment simulates
+A **clinician-style diagnostic workflow**:
+- The agent sees **public symptoms** at episode start.
+- It can **ask questions** to retrieve hidden clinical facts (duration, platelet count, rash, travel history, spleen status, etc.).
+- It must then **produce a diagnosis** from the evidence gathered.
+- The environment rewards **efficient information-gathering** and **accurate diagnosis**.
+
+## Tasks (5 — easy → expert)
+
+| Task | Difficulty | Target Diagnosis | Key Differentiators |
+|------|-----------|-----------------|---------------------|
+| `easy_fever_cough` | Easy | common cold | Short duration, cough, sore throat |
+| `medium_flu_vs_dengue` | Medium | influenza | Body pain, fatigue, normal platelets |
+| `hard_dengue_like` | Hard | dengue | Low platelets, bleeding, mosquito exposure |
+| `expert_malaria_mimic` | Expert | malaria | Cyclic fever, endemic travel, enlarged spleen |
+| `expert_typhoid_enteric` | Expert | typhoid | Stepladder fever, diarrhea, street food exposure |
+
+Each task has **7–10 hidden facts** the agent must discover through targeted questions.
 
 ## Action space
-- `{"type": "ask", "content": "<question>"}`
-- `{"type": "diagnose", "content": "<diagnosis label>"}`
+- `{"type": "ask", "content": "<question>"}` — retrieve a hidden clinical fact
+- `{"type": "diagnose", "content": "<diagnosis label>"}` — submit a diagnosis
 
 ## Observation space
 - `task`: task name
 - `public_symptoms`: visible symptoms list
-- `history`: list of conversation turns (Q/A)
+- `history`: list of conversation turns (Q/A pairs and diagnoses)
+- `last_answer`: most recent answer from the environment
 
-## Rewards
-All rewards are normalized to **[0.0, 1.0]**.
-- `ask` → `0.05` for retrieving a relevant hidden fact, otherwise `0.0`
-- `diagnose` → `1.0` exact/synonym match, `0.5` partial token overlap, else `0.0`
+## Rewards (progressive shaping)
+All rewards are normalized to the open interval **(0.0, 1.0)**.
+
+| Action | Condition | Reward |
+|--------|-----------|--------|
+| `ask` | High-value fact (platelets, bleeding, travel, rash, diarrhea, spleen) | **0.10** |
+| `ask` | Standard fact (duration, temperature, appetite, etc.) | **0.05** |
+| `ask` | Repeated question | **0.01** |
+| `ask` | Irrelevant / unrecognized | **0.01** |
+| `diagnose` | Exact match or synonym | **0.99** |
+| `diagnose` | Partial token overlap | **0.40–0.70** (ratio-based) |
+| `diagnose` | Partial synonym overlap | **0.35** |
+| `diagnose` | No match | **0.01** |
+
+## Grading logic
+- **Deterministic** — no randomness, fully reproducible
+- **Synonym-aware** — accepts common medical synonyms (e.g., "flu" → influenza, "enteric fever" → typhoid)
+- **Partial credit** — token overlap ratio gives proportional score
+- **Severity-scaled** — scores clamped to open interval (0, 1) for validator compatibility
 
 ## RL framing (why this is reinforcement learning)
-This is an RL-style environment: an agent interacts over multiple steps by choosing actions (`ask` vs `diagnose`) based on observations (symptoms + conversation history) to maximize cumulative reward. Rewards are shaped to encourage efficient information-gathering (small positive reward for relevant questions) and correct decision-making (reward `1.0` for the right diagnosis), with episodes terminating on success or at a fixed step limit.
+This is an RL-style environment: an agent interacts over multiple steps by choosing actions (`ask` vs `diagnose`) based on observations (symptoms + conversation history) to maximize cumulative reward. Rewards are **progressively shaped**:
+- **Dense rewards** for information-gathering (higher for diagnostically relevant facts)
+- **Diminishing returns** for repeated questions
+- **Terminal reward** for correct diagnosis
+- Episodes terminate on correct diagnosis or at the step limit (default: 8)
 
 ## Run locally (Python)
 From repo root:

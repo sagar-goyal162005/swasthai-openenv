@@ -167,6 +167,8 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
     def close(self) -> None:
         return
 
+    _HIGH_VALUE_KEYS = {"platelets", "bleeding", "travel", "rash", "diarrhea", "spleen"}
+
     def _answer_question(self, question: str) -> tuple[str, float]:
         assert self._case is not None
         q = question.lower()
@@ -183,6 +185,20 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
             "breath": "breathlessness",
             "travel": "travel",
             "mosquito": "travel",
+            "appetite": "appetite",
+            "temperature": "temperature",
+            "temp": "temperature",
+            "chills": "chills",
+            "sweat": "chills",
+            "diarrhea": "diarrhea",
+            "stool": "diarrhea",
+            "constipation": "diarrhea",
+            "spleen": "spleen",
+            "abdomen": "spleen",
+            "dehydration": "dehydration",
+            "water": "dehydration",
+            "food": "appetite",
+            "eat": "appetite",
         }
 
         matched_key: Optional[str] = None
@@ -194,5 +210,13 @@ class SwasthAIEnvironment(Environment[SwasthAIAction, SwasthAIObservation, Swast
         if matched_key is None:
             return "I don't have that information based on your question.", clamp_score(0.0)
 
+        # Penalize repeated questions
+        prev_questions = [a.lower() for a in self._asked]
+        if any(matched_key in pq for pq in prev_questions):
+            answer = self._case.hidden_facts[matched_key]
+            return f"{matched_key}: {answer} (already asked)", clamp_score(0.01)
+
         answer = self._case.hidden_facts[matched_key]
+        if matched_key in self._HIGH_VALUE_KEYS:
+            return f"{matched_key}: {answer}", clamp_score(0.10)
         return f"{matched_key}: {answer}", clamp_score(0.05)

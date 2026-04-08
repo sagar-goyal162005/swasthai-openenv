@@ -22,7 +22,7 @@ from openenv_submission.env import Action, SwasthAIEnv
 from openenv_submission.tasks import list_task_names
 
 
-_DIAGNOSIS_LABELS: Tuple[str, ...] = ("common cold", "influenza", "dengue")
+_DIAGNOSIS_LABELS: Tuple[str, ...] = ("common cold", "influenza", "dengue", "malaria", "typhoid")
 
 _QUESTION_NEEDLES: Tuple[str, ...] = (
     "how long",
@@ -36,6 +36,17 @@ _QUESTION_NEEDLES: Tuple[str, ...] = (
     "breath",
     "travel",
     "mosquito",
+    "appetite",
+    "temperature",
+    "chills",
+    "diarrhea",
+    "spleen",
+    "abdomen",
+    "dehydration",
+    "stool",
+    "constipation",
+    "food",
+    "eat",
 )
 
 
@@ -70,6 +81,13 @@ def _pick_next_question(symptoms: Sequence[str], asked: Sequence[str]) -> str:
     candidates.append("Do you know your platelet count?")
     candidates.append("Any bleeding like gum bleeding?")
 
+    # Malaria / typhoid disambiguators
+    candidates.append("Do you have chills or sweating episodes?")
+    candidates.append("What is your temperature pattern?")
+    candidates.append("Do you have diarrhea or constipation?")
+    candidates.append("Is your spleen or abdomen tender?")
+    candidates.append("How is your appetite and food intake?")
+
     asked_set = {a.strip().lower() for a in asked}
     for q in candidates:
         if q.strip().lower() not in asked_set:
@@ -80,6 +98,16 @@ def _pick_next_question(symptoms: Sequence[str], asked: Sequence[str]) -> str:
 def _heuristic_diagnosis(symptoms: Sequence[str], history: Sequence[str]) -> str:
     s = " ".join(symptoms).lower()
     h = "\n".join(history).lower()
+
+    # Typhoid indicators — stepladder fever, diarrhea, street food
+    if ("stepladder" in h or "street food" in h or "untreated water" in h
+            or ("diarrhea" in h and "abdominal" in s)):
+        return "typhoid"
+
+    # Malaria indicators — cyclic fever, endemic zone, spleen
+    if ("cyclic" in h or "endemic" in h or "malaria zone" in h
+            or ("spleen" in h and "chills" in s)):
+        return "malaria"
 
     # Strong dengue indicators
     if "platelets: low" in h or "bleeding" in h or "mosquito" in h or "rash" in s:

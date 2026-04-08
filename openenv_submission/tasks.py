@@ -18,7 +18,7 @@ class Case:
     target_diagnosis: str
 
 
-# 3 tasks (easy -> medium -> hard) with deterministic graders
+# 5 tasks (easy -> medium -> hard -> expert) with deterministic graders
 CASES: List[Case] = [
     Case(
         name="easy_fever_cough",
@@ -29,6 +29,8 @@ CASES: List[Case] = [
             "rash": "no",
             "travel": "no",
             "body_pain": "mild",
+            "appetite": "slightly reduced",
+            "temperature": "99.5F",
         },
         target_diagnosis="common cold",
     ),
@@ -41,6 +43,9 @@ CASES: List[Case] = [
             "platelets": "normal",
             "breathlessness": "no",
             "travel": "no",
+            "chills": "yes, with sweating",
+            "temperature": "102F",
+            "appetite": "very poor",
         },
         target_diagnosis="influenza",
     ),
@@ -53,8 +58,44 @@ CASES: List[Case] = [
             "bleeding": "minor gum bleeding",
             "travel": "recent mosquito exposure",
             "breathlessness": "no",
+            "temperature": "104F",
+            "appetite": "none",
+            "dehydration": "moderate",
         },
         target_diagnosis="dengue",
+    ),
+    Case(
+        name="expert_malaria_mimic",
+        public_symptoms=["high fever", "chills", "sweating", "headache"],
+        hidden_facts={
+            "duration": "7 days",
+            "platelets": "low",
+            "bleeding": "no",
+            "travel": "visited endemic malaria zone 2 weeks ago",
+            "rash": "no",
+            "temperature": "103F with cyclic pattern",
+            "appetite": "very poor",
+            "fatigue": "severe, bedridden",
+            "spleen": "enlarged on palpation",
+        },
+        target_diagnosis="malaria",
+    ),
+    Case(
+        name="expert_typhoid_enteric",
+        public_symptoms=["sustained fever", "abdominal pain", "weakness"],
+        hidden_facts={
+            "duration": "10 days",
+            "platelets": "borderline low",
+            "bleeding": "no",
+            "travel": "consumed street food and untreated water",
+            "rash": "faint rose spots on abdomen",
+            "temperature": "stepladder pattern reaching 104F",
+            "appetite": "absent",
+            "fatigue": "extreme",
+            "diarrhea": "yes, alternating with constipation",
+            "spleen": "mildly enlarged",
+        },
+        target_diagnosis="typhoid",
     ),
 ]
 
@@ -96,6 +137,14 @@ def hard_dengue_like_task_grader(predicted: str) -> float:
     return _call_grader_module("grade_hard_dengue_like", predicted)
 
 
+def expert_malaria_mimic_task_grader(predicted: str) -> float:
+    return _call_grader_module("grade_expert_malaria_mimic", predicted)
+
+
+def expert_typhoid_enteric_task_grader(predicted: str) -> float:
+    return _call_grader_module("grade_expert_typhoid_enteric", predicted)
+
+
 def _task_dict(case: Case, grader: Callable[[str], float]) -> Dict[str, Any]:
     return {
         "name": case.name,
@@ -110,4 +159,6 @@ TASKS: List[Dict[str, Any]] = [
     _task_dict(CASE_BY_NAME["easy_fever_cough"], easy_fever_cough_task_grader),
     _task_dict(CASE_BY_NAME["medium_flu_vs_dengue"], medium_flu_vs_dengue_task_grader),
     _task_dict(CASE_BY_NAME["hard_dengue_like"], hard_dengue_like_task_grader),
+    _task_dict(CASE_BY_NAME["expert_malaria_mimic"], expert_malaria_mimic_task_grader),
+    _task_dict(CASE_BY_NAME["expert_typhoid_enteric"], expert_typhoid_enteric_task_grader),
 ]
