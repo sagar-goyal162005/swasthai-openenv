@@ -9,22 +9,34 @@ tasks:
   - id: medium_flu_vs_dengue
     name: medium_flu_vs_dengue
     grader: openenv_submission.grader:grade_medium_flu_vs_dengue
+  - id: medium_pneumonia
+    name: medium_pneumonia
+    grader: openenv_submission.grader:grade_medium_pneumonia
   - id: hard_dengue_like
     name: hard_dengue_like
     grader: openenv_submission.grader:grade_hard_dengue_like
+  - id: hard_covid_respiratory
+    name: hard_covid_respiratory
+    grader: openenv_submission.grader:grade_hard_covid_respiratory
   - id: expert_malaria_mimic
     name: expert_malaria_mimic
     grader: openenv_submission.grader:grade_expert_malaria_mimic
   - id: expert_typhoid_enteric
     name: expert_typhoid_enteric
     grader: openenv_submission.grader:grade_expert_typhoid_enteric
+  - id: expert_chikungunya
+    name: expert_chikungunya
+    grader: openenv_submission.grader:grade_expert_chikungunya
 
 graders:
   easy_fever_cough: openenv_submission.grader:grade_easy_fever_cough
   medium_flu_vs_dengue: openenv_submission.grader:grade_medium_flu_vs_dengue
+  medium_pneumonia: openenv_submission.grader:grade_medium_pneumonia
   hard_dengue_like: openenv_submission.grader:grade_hard_dengue_like
+  hard_covid_respiratory: openenv_submission.grader:grade_hard_covid_respiratory
   expert_malaria_mimic: openenv_submission.grader:grade_expert_malaria_mimic
   expert_typhoid_enteric: openenv_submission.grader:grade_expert_typhoid_enteric
+  expert_chikungunya: openenv_submission.grader:grade_expert_chikungunya
 
 entrypoint:
   env_module: openenv_submission.server.environment

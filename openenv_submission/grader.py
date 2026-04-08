@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import List, Optional, Sequence
 
-from .tasks import CASE_BY_NAME, list_task_names
+from .tasks import CASE_BY_NAME, Case, list_task_names
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,9 @@ def grade_diagnosis(predicted: str, actual: str) -> GradeResult:
         "dengue": {"dengue fever", "dengue hemorrhagic fever", "dhf", "break-bone fever"},
         "malaria": {"plasmodium", "plasmodium falciparum", "plasmodium vivax", "malarial fever"},
         "typhoid": {"typhoid fever", "enteric fever", "salmonella typhi"},
+        "pneumonia": {"bacterial pneumonia", "community acquired pneumonia", "cap", "lobar pneumonia", "lung infection"},
+        "covid-19": {"covid", "coronavirus", "sars-cov-2", "covid 19", "corona"},
+        "chikungunya": {"chikungunya fever", "chikungunya virus", "chik", "chikv"},
     }
 
     synonyms = _SYNONYMS.get(a, set())
@@ -140,6 +144,18 @@ def grade_expert_typhoid_enteric(predicted: str) -> float:
     return float(grade("expert_typhoid_enteric", predicted))
 
 
+def grade_medium_pneumonia(predicted: str) -> float:
+    return float(grade("medium_pneumonia", predicted))
+
+
+def grade_hard_covid_respiratory(predicted: str) -> float:
+    return float(grade("hard_covid_respiratory", predicted))
+
+
+def grade_expert_chikungunya(predicted: str) -> float:
+    return float(grade("expert_chikungunya", predicted))
+
+
 def grade_easy_fever_cough_result(predicted: str) -> GradeResult:
     return grade_result("easy_fever_cough", predicted)
 
@@ -160,8 +176,70 @@ def grade_expert_typhoid_enteric_result(predicted: str) -> GradeResult:
     return grade_result("expert_typhoid_enteric", predicted)
 
 
+def grade_medium_pneumonia_result(predicted: str) -> GradeResult:
+    return grade_result("medium_pneumonia", predicted)
+
+
+def grade_hard_covid_respiratory_result(predicted: str) -> GradeResult:
+    return grade_result("hard_covid_respiratory", predicted)
+
+
+def grade_expert_chikungunya_result(predicted: str) -> GradeResult:
+    return grade_result("expert_chikungunya", predicted)
+
+
 # Mapping of task_name -> grader callable returning a float score.
 TASK_GRADERS = {
     name: (lambda predicted, _name=name: grade(_name, predicted))
     for name in list_task_names()
 }
+
+
+# ---------------------------------------------------------------------------
+# Trajectory grading — evaluate the *quality* of questions asked, not just
+# the final diagnosis.
+# ---------------------------------------------------------------------------
+
+def grade_trajectory(
+    case: Case,
+    asked_fact_keys: Sequence[str],
+    diagnosis_correct: bool,
+    steps_taken: int,
+    max_steps: int = 8,
+) -> float:
+    """Score an entire episode trajectory.
+
+    Components:
+    - diagnosis_weight (60%): 0.99 if correct, else MIN_SCORE
+    - question_quality (25%): fraction of key_questions the agent asked
+    - efficiency (15%): bonus for finishing in fewer steps
+
+    Returns a score strictly in (0, 1).
+    """
+    # Diagnosis component
+    dx_score = MAX_SCORE if diagnosis_correct else MIN_SCORE
+
+    # Question quality — what fraction of key questions did agent ask?
+    if case.key_questions:
+        asked_set = set(asked_fact_keys)
+        hits = sum(1 for kq in case.key_questions if kq in asked_set)
+        q_score = hits / len(case.key_questions)
+    else:
+        q_score = 0.5  # no key questions defined → neutral
+
+    # Efficiency — fewer steps is better
+    eff_score = max(0.0, 1.0 - (steps_taken / max_steps))
+
+    raw = 0.60 * dx_score + 0.25 * q_score + 0.15 * eff_score
+    return clamp_score(raw)
+
+
+def time_decay_factor(step: int, max_steps: int = 8) -> float:
+    """Reward decay multiplier: earlier diagnoses get higher reward.
+
+    Step 1 → 1.0, step max_steps → 0.5.
+    """
+    if max_steps <= 1:
+        return 1.0
+    decay = 1.0 - 0.5 * ((step - 1) / (max_steps - 1))
+    return max(0.5, min(1.0, decay))

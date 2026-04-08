@@ -22,31 +22,28 @@ from openenv_submission.env import Action, SwasthAIEnv
 from openenv_submission.tasks import list_task_names
 
 
-_DIAGNOSIS_LABELS: Tuple[str, ...] = ("common cold", "influenza", "dengue", "malaria", "typhoid")
+_DIAGNOSIS_LABELS: Tuple[str, ...] = (
+    "common cold", "influenza", "dengue", "malaria", "typhoid",
+    "pneumonia", "covid-19", "chikungunya",
+)
 
 _QUESTION_NEEDLES: Tuple[str, ...] = (
-    "how long",
-    "duration",
-    "days",
-    "rash",
-    "platelet",
-    "bleeding",
-    "body pain",
-    "fatigue",
-    "breath",
-    "travel",
-    "mosquito",
-    "appetite",
-    "temperature",
-    "chills",
-    "diarrhea",
-    "spleen",
-    "abdomen",
-    "dehydration",
-    "stool",
-    "constipation",
-    "food",
-    "eat",
+    "how long", "duration", "days",
+    "rash", "platelet", "bleeding",
+    "body pain", "fatigue", "breath",
+    "travel", "mosquito",
+    "appetite", "temperature", "chills",
+    "diarrhea", "spleen", "abdomen",
+    "dehydration", "stool", "constipation",
+    "food", "eat",
+    # pneumonia / covid / chikungunya
+    "sputum", "phlegm", "mucus",
+    "oxygen", "spo2", "saturation",
+    "lung", "auscultation", "crackle",
+    "smell", "anosmia", "taste",
+    "joint", "swelling",
+    "eye", "conjunctiv",
+    "gathering", "contact", "exposure",
 )
 
 
@@ -88,6 +85,16 @@ def _pick_next_question(symptoms: Sequence[str], asked: Sequence[str]) -> str:
     candidates.append("Is your spleen or abdomen tender?")
     candidates.append("How is your appetite and food intake?")
 
+    # Pneumonia / COVID disambiguators
+    candidates.append("Do you have sputum or phlegm? What color?")
+    candidates.append("What is your oxygen saturation (SpO2)?")
+    candidates.append("Have you lost your sense of smell or taste?")
+    candidates.append("Did you attend any large gatherings or have close contact with sick people?")
+
+    # Chikungunya disambiguators
+    candidates.append("Do you have joint swelling, especially in wrists or ankles?")
+    candidates.append("Do you have any eye redness or conjunctivitis?")
+
     asked_set = {a.strip().lower() for a in asked}
     for q in candidates:
         if q.strip().lower() not in asked_set:
@@ -98,6 +105,18 @@ def _pick_next_question(symptoms: Sequence[str], asked: Sequence[str]) -> str:
 def _heuristic_diagnosis(symptoms: Sequence[str], history: Sequence[str]) -> str:
     s = " ".join(symptoms).lower()
     h = "\n".join(history).lower()
+
+    # Chikungunya — joint swelling + rash + tropical outbreak
+    if ("joint_swelling" in h or "swollen joints" in s) and ("outbreak" in h or "conjunctivitis" in h):
+        return "chikungunya"
+
+    # COVID-19 — loss of smell/taste + gathering exposure
+    if "anosmia" in h or "loss of smell" in h or ("loss of taste" in s and "gathering" in h):
+        return "covid-19"
+
+    # Pneumonia — productive cough + crackles/sputum + low SpO2
+    if ("crackle" in h or "sputum" in h) and ("cough" in s or "chest" in s):
+        return "pneumonia"
 
     # Typhoid indicators — stepladder fever, diarrhea, street food
     if ("stepladder" in h or "street food" in h or "untreated water" in h
@@ -110,15 +129,28 @@ def _heuristic_diagnosis(symptoms: Sequence[str], history: Sequence[str]) -> str
         return "malaria"
 
     # Strong dengue indicators
-    if "platelets: low" in h or "bleeding" in h or "mosquito" in h or "rash" in s:
+    if "platelets: low" in h or "bleeding" in h or "mosquito" in h:
         return "dengue"
 
     # URI/common cold style symptoms
     if "cough" in s or "sore throat" in s:
+        if "shortness of breath" in s or "chest pain" in s:
+            return "pneumonia"
         return "common cold"
 
     # Default influenza-like illness
     return "influenza"
+
+
+def _heuristic_confidence(symptoms: Sequence[str], history: Sequence[str]) -> float:
+    """Estimate confidence based on how much evidence was gathered."""
+    h = "\n".join(history).lower()
+    evidence_count = h.count("a: ") - h.count("already asked")
+    if evidence_count >= 4:
+        return 0.9
+    if evidence_count >= 2:
+        return 0.7
+    return 0.5
 
 
 def _env_vars() -> Tuple[str, str, Optional[str]]:
@@ -128,30 +160,55 @@ def _env_vars() -> Tuple[str, str, Optional[str]]:
     return api_base_url, model_name, hf_token
 
 
+_SYSTEM_PROMPT = textwrap.dedent("""\
+You are an expert clinical triage AI in a simulated diagnostic environment.
+Your goal is to efficiently identify the correct diagnosis by asking targeted
+questions and then providing your diagnosis with a confidence score.
+
+Think step by step:
+1. Analyze the visible symptoms and conversation history
+2. Identify which key clinical facts are still unknown
+3. Choose the most discriminating question OR diagnose if you have enough evidence
+
+Output ONLY valid JSON, no markdown, no explanation outside the JSON.
+""").strip()
+
+_FEW_SHOT_EXAMPLES = textwrap.dedent("""\
+Example interactions:
+- Symptoms: [fever, cough, sore throat] → ask about duration → 2 days → ask about breathing → no → diagnose "common cold" confidence 0.9
+- Symptoms: [high fever, chills, sweating, headache] → ask about travel → endemic malaria zone → ask about temperature → cyclic → diagnose "malaria" confidence 0.85
+- Symptoms: [fever, dry cough, loss of taste] → ask about smell → anosmia → diagnose "covid-19" confidence 0.9
+""").strip()
+
+
 def _build_prompt(task: str, symptoms: List[str], history: List[str]) -> str:
     history_block = "\n".join(history) if history else "(none)"
     return textwrap.dedent(
         f"""
-        You are a clinical triage assistant in a simulated environment.
+        {_FEW_SHOT_EXAMPLES}
 
-        Task: Identify the most likely diagnosis.
+        ---
+
+        Current case:
         Visible symptoms: {symptoms}
 
-        Conversation history (Q/A + any prior diagnoses):
+        Conversation history:
         {history_block}
 
-        Choose ONE action for the next step, in strict JSON:
-        {{"type": "ask", "content": "<one short question>"}}
+        Choose ONE action in strict JSON:
+        {{"type": "ask", "content": "<targeted clinical question>"}}
         OR
-        {{"type": "diagnose", "content": "<diagnosis label>"}}
+        {{"type": "diagnose", "content": "<diagnosis label>", "confidence": <0.0-1.0>}}
 
         Allowed diagnosis labels (must match exactly): {list(_DIAGNOSIS_LABELS)}
 
         Rules:
+        - Ask the MOST discriminating question first (e.g., travel history, platelet count, smell/taste).
         - Do NOT repeat a question already asked.
-        - Ask at most 3 questions total, then diagnose.
-        - Keep content concise.
-        - Output ONLY JSON, no markdown.
+        - Ask at most 4 questions total, then you MUST diagnose.
+        - Include a confidence score (0.0-1.0) when diagnosing.
+        - Consider differential diagnosis: rule out similar diseases before deciding.
+        - Output ONLY JSON, no markdown or extra text.
         """
     ).strip()
 
@@ -162,7 +219,6 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 def _parse_action(raw: str) -> Action:
     m = _JSON_RE.search(raw.strip())
     if not m:
-        # fallback: diagnose with raw text
         return Action(type="diagnose", content=raw.strip()[:120])
 
     try:
@@ -178,7 +234,6 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
     if _OPENAI_V1 and hf_token:
         client = OpenAI(api_key=hf_token, base_url=api_base_url)  # type: ignore[misc]
     else:
-        # openai<1.0.0 compatibility
         if not _OPENAI_V1:
             openai.api_key = hf_token  # type: ignore[name-defined]
             openai.api_base = api_base_url  # type: ignore[name-defined]
@@ -197,17 +252,16 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
     try:
         for step_idx in range(max_steps):
             asked_questions = _extract_questions(obs.history)
-            max_asks = 3
+            max_asks = 4
             prompt = _build_prompt(task=obs.task, symptoms=obs.public_symptoms, history=obs.history)
 
             try:
                 try:
-                    # If token is missing, skip LLM call and use deterministic fallback.
                     if not hf_token:
                         raise RuntimeError("missing_hf_token")
 
                     messages = [
-                        {"role": "system", "content": "You must output strict JSON only."},
+                        {"role": "system", "content": _SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ]
 
@@ -215,7 +269,7 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
                         resp = client.chat.completions.create(  # type: ignore[union-attr]
                             model=model_name,
                             temperature=0.0,
-                            max_tokens=200,
+                            max_tokens=250,
                             messages=messages,
                         )
                         raw = (resp.choices[0].message.content or "").strip()
@@ -223,7 +277,7 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
                         resp = openai.ChatCompletion.create(  # type: ignore[name-defined]
                             model=model_name,
                             temperature=0.0,
-                            max_tokens=200,
+                            max_tokens=250,
                             messages=messages,
                         )
                         raw = (resp["choices"][0]["message"]["content"] or "").strip()
@@ -241,7 +295,9 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
 
             # Enforce ask-limit + de-duplication + last-step diagnosis.
             if (len(asked_questions) >= max_asks) or (step_idx >= max_steps - 1):
-                action = Action(type="diagnose", content=_heuristic_diagnosis(obs.public_symptoms, obs.history))
+                dx = _heuristic_diagnosis(obs.public_symptoms, obs.history)
+                conf = _heuristic_confidence(obs.public_symptoms, obs.history)
+                action = Action(type="diagnose", content=dx, confidence=conf)
             else:
                 if action.type == "ask":
                     q_norm = (action.content or "").strip().lower()
@@ -250,14 +306,14 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
                 else:
                     pred = (action.content or "").strip().lower()
                     if pred not in _DIAGNOSIS_LABELS:
-                        # If LLM isn't available or returns an invalid label, use a safe exact-label fallback.
-                        action = Action(type="diagnose", content=_heuristic_diagnosis(obs.public_symptoms, obs.history))
+                        dx = _heuristic_diagnosis(obs.public_symptoms, obs.history)
+                        conf = _heuristic_confidence(obs.public_symptoms, obs.history)
+                        action = Action(type="diagnose", content=dx, confidence=conf)
 
             obs, reward, done, info = env.step(action)
             final_score = float(reward)
             rewards.append(f"{reward:.2f}")
 
-            # action must be a single string
             action_str = (
                 f"ask({json.dumps(action.content)})" if action.type == "ask" else f"diagnose({json.dumps(action.content)})"
             )
@@ -266,14 +322,19 @@ def run_episode(task_name: str, max_steps: int = 8) -> int:
             if not step_error:
                 err_field = "null"
             else:
-                # raw error string but keep it on one line
                 err_field = str(step_error).replace("\n", " ").replace("\r", " ")
+
+            extra = ""
+            if info.get("trajectory_score") is not None:
+                extra += f" trajectory={info['trajectory_score']:.2f}"
+            if info.get("agent_confidence") is not None:
+                extra += f" confidence={info['agent_confidence']:.2f}"
+
             print(
-                f"[STEP] step={step_idx + 1} action={action_str} reward={reward:.2f} done={str(done).lower()} error={err_field}"
+                f"[STEP] step={step_idx + 1} action={action_str} reward={reward:.2f} done={str(done).lower()} error={err_field}{extra}"
             )
 
             if done:
-                # success is "correct diagnosis at any point"
                 success = bool(info.get("is_correct", False))
                 break
 
