@@ -1,45 +1,61 @@
-spec_version: 1
 name: swasthai
-type: space
-runtime: fastapi
-app: server.app:app
-port: 7860
-
 version: 1.0.0
-description: "Healthcare triage & diagnosis workflow environment (SwasthAI hackathon layer)."
+description: >-
+  Healthcare triage & diagnosis workflow environment where an agent asks
+  targeted clinical questions and diagnoses patients under step constraints.
+
+tags:
+  - openenv
+  - healthcare
+  - triage
+  - diagnosis
+
+entrypoint:
+  python_module: app:app
+
+environment:
+  class_path: openenv_submission.server.environment:SwasthAIEnvironment
+  action_model: openenv_submission.server.environment:SwasthAIAction
+  observation_model: openenv_submission.server.environment:SwasthAIObservation
 
 tasks:
   - id: easy_fever_cough
     name: easy_fever_cough
-    grader: "openenv_submission.grader:grade_easy_fever_cough"
+    grader: "graders:grade_easy_fever_cough"
   - id: medium_flu_vs_dengue
     name: medium_flu_vs_dengue
-    grader: "openenv_submission.grader:grade_medium_flu_vs_dengue"
+    grader: "graders:grade_medium_flu_vs_dengue"
   - id: medium_pneumonia
     name: medium_pneumonia
-    grader: "openenv_submission.grader:grade_medium_pneumonia"
+    grader: "graders:grade_medium_pneumonia"
   - id: hard_dengue_like
     name: hard_dengue_like
-    grader: "openenv_submission.grader:grade_hard_dengue_like"
+    grader: "graders:grade_hard_dengue_like"
   - id: hard_covid_respiratory
     name: hard_covid_respiratory
-    grader: "openenv_submission.grader:grade_hard_covid_respiratory"
+    grader: "graders:grade_hard_covid_respiratory"
   - id: expert_malaria_mimic
     name: expert_malaria_mimic
-    grader: "openenv_submission.grader:grade_expert_malaria_mimic"
+    grader: "graders:grade_expert_malaria_mimic"
   - id: expert_typhoid_enteric
     name: expert_typhoid_enteric
-    grader: "openenv_submission.grader:grade_expert_typhoid_enteric"
+    grader: "graders:grade_expert_typhoid_enteric"
   - id: expert_chikungunya
     name: expert_chikungunya
-    grader: "openenv_submission.grader:grade_expert_chikungunya"
+    grader: "graders:grade_expert_chikungunya"
 
 graders:
-  easy_fever_cough: "openenv_submission.grader:grade_easy_fever_cough"
-  medium_flu_vs_dengue: "openenv_submission.grader:grade_medium_flu_vs_dengue"
-  medium_pneumonia: "openenv_submission.grader:grade_medium_pneumonia"
-  hard_dengue_like: "openenv_submission.grader:grade_hard_dengue_like"
-  hard_covid_respiratory: "openenv_submission.grader:grade_hard_covid_respiratory"
-  expert_malaria_mimic: "openenv_submission.grader:grade_expert_malaria_mimic"
-  expert_typhoid_enteric: "openenv_submission.grader:grade_expert_typhoid_enteric"
-  expert_chikungunya: "openenv_submission.grader:grade_expert_chikungunya"
+  easy_fever_cough: "graders:grade_easy_fever_cough"
+  medium_flu_vs_dengue: "graders:grade_medium_flu_vs_dengue"
+  medium_pneumonia: "graders:grade_medium_pneumonia"
+  hard_dengue_like: "graders:grade_hard_dengue_like"
+  hard_covid_respiratory: "graders:grade_hard_covid_respiratory"
+  expert_malaria_mimic: "graders:grade_expert_malaria_mimic"
+  expert_typhoid_enteric: "graders:grade_expert_typhoid_enteric"
+  expert_chikungunya: "graders:grade_expert_chikungunya"
+
+api:
+  reset: /reset
+  step: /step
+  state: /state
+  close: /close

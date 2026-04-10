@@ -1,13 +1,16 @@
 FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
 
-# Copy the full submission bundle so `openenv validate` (repo-mode)
-# can see repo-root artifacts like `pyproject.toml`, `uv.lock`, and `server/app.py`.
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
 COPY . /app
 
-RUN pip install --no-cache-dir -r /app/openenv_submission/requirements.txt
+EXPOSE 7860
 
-ENV PYTHONUNBUFFERED=1
-
-CMD ["python", "-m", "openenv_submission.server.app"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

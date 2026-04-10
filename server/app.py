@@ -1,13 +1,10 @@
-from __future__ import annotations
-
-# Shim module required by `openenv validate` in repo mode.
-# The actual implementation lives in `openenv_submission.server.app`.
-
-from openenv_submission.server.app import app, main as _main  # re-export
+from app import app
 
 
 def main() -> None:
-    _main()
+    import uvicorn
+
+    uvicorn.run("app:app", host="0.0.0.0", port=7860)
 
 
 if __name__ == "__main__":
